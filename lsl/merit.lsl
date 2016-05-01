@@ -2,6 +2,7 @@
 
 string SERVER = "http://merit.sourceforge.net/api.php";
 string SECRET = "changeme";
+integer DEBUG = FALSE;
 
 // ------------------------- BEGIN OF SCRIPT ---------------------------------
 
@@ -11,12 +12,33 @@ list LISTENER_CHANNELS;
 list LISTENER_IDENTIFIERS;
 list LISTENER_TIMESTAMPS;
 
-send_request(list data)
+debug(string message)
 {
-    llHTTPRequest(SERVER, [HTTP_METHOD, "POST", HTTP_CUSTOM_HEADER, "X-Secret", SECRET], llList2Json(JSON_ARRAY, data));
+    if (DEBUG)
+    {
+        llOwnerSay("DEBUG: " + message);
+    }
 }
 
 
+/**
+ * sends a message to the server backend
+ *
+ * @param data the command (at index 0) and parameters
+ */
+send_request(list data)
+{
+    debug(">" + llList2Json(JSON_ARRAY, data));
+    llHTTPRequest(SERVER, [HTTP_METHOD, "POST", HTTP_CUSTOM_HEADER, "X-Secret", SECRET], llList2Json(JSON_ARRAY, data));
+}
+
+/**
+ * gets the id of the currently active group of the specified agent.
+ * For this function to work, the agent needs to be near by and has to wear at least one non-hud attachment
+ *
+ * @param agentid id of an agent
+ * @return id of current active group of that agent
+ */
 key agent_group(key agentid)
 {
     list attachedUUIDs = llGetAttachedList(agentid);
@@ -28,7 +50,14 @@ key agent_group(key agentid)
     return NULL_KEY;
 }
 
-
+/**
+ * allocates a listener on a random positive channel.
+ * A possitive channel is picked for RLV compatibility.
+ *
+ * @param identifier identifier provided by the server
+ * @param id agent or object to listen to
+ * @return channel number
+ */
 integer allocate_listener(integer identifier, key id)
 {
     // Create random channel within range [1000000000, 2000000000]
@@ -38,6 +67,7 @@ integer allocate_listener(integer identifier, key id)
     LISTENER_TIMESTAMPS  += llGetUnixTime();
     LISTENER_HANDLES     += llListen(channel, "", id, "");
 
+    // start timer to handle timeouts, if it is not already running
     if (llGetListLength(LISTENER_TIMESTAMPS) == 1)
     {
         llSetTimerEvent(60.0);
@@ -45,7 +75,11 @@ integer allocate_listener(integer identifier, key id)
     return channel;
 }
 
-
+/**
+ * removes a listener and cleans up all the meta information
+ *
+ * @param i index of listener
+ */
 cleanup_listener(integer i)
 {
     llListenRemove(llList2Integer(LISTENER_HANDLES, i));
@@ -56,6 +90,11 @@ cleanup_listener(integer i)
 }
 
 
+/**
+ * executes a command
+ *
+ * @param data a command (at index 0) and its parameter
+ */
 execute_command(list data)
 {
     string command = llList2String(data, 0);
@@ -101,9 +140,17 @@ execute_command(list data)
         integer channel = allocate_listener(llList2Integer(data, 1), llList2Key(data, 2));
         llTextBox(llList2Key(data, 2), llList2String(data, 3), channel);
     }
-    else if (command == "shout")
+    else if (command == "settext")
     {
-        llShout(llList2Integer(data, 1), llList2String(data, 2));
+        llSetText(llList2String(data, 1), llList2Vector(data, 2), llList2Float(data, 3));
+    }
+    else if (command == "setobjectname")
+    {
+        llSetObjectName(llList2String(data, 1));
+    }
+    else if (command == "setobjectdesc")
+    {
+        llSetObjectDesc(llList2String(data, 1));
     }
 }
 
@@ -116,6 +163,9 @@ default
         
     }
 
+    /**
+     * reset script on owner change to clean up all pending listeners
+     */
     changed(integer Changed)
     {
         if (Changed & CHANGED_OWNER)
@@ -125,6 +175,9 @@ default
         send_request(["changed", Changed]);
     }
 
+    /**
+     * reports an answer (e. g. from a dialog or message box) to the server and cleans up the listener
+     */
     listen(integer channel, string name, key id, string message)
     {
         integer i = llListFindList(LISTENER_CHANNELS, [channel]);
@@ -132,11 +185,18 @@ default
         cleanup_listener(i);
     }
 
+    /**
+     * reports rezzing to the server with the current version number.
+     * the server will most likely answer with a set on commands to be executed on login
+     */
     on_rez(integer startParameter)
     {
         send_request(["on_rez", startParameter, VERSION]);
     }
 
+    /**
+     * cleans up listeners (e. g. if an avatar closed a dialog box with "Ignore"
+     */
     timer()
     {
         integer compare = llGetUnixTime() - 5*60;
@@ -151,20 +211,29 @@ default
             }
         }
 
+        // if there are no more pending listeners, stop the timer events
         if (llGetListLength(LISTENER_TIMESTAMPS) == 0)
         {
             llSetTimerEvent(0.0);
         }
     }
 
+    /**
+     * reports a touch event to the server, which will most likely answer with
+     * with a command to display a dialog, after checking permissions
+     */
     touch_start(integer total_number)
     {
         send_request(["touch", llDetectedKey(0), llDetectedName(0), agent_group(llDetectedKey(0))]);
     }
 
+    /**
+     * handles a response from the server by splitting it into invidiual 
+     * commands which will be executed by execute_command()
+     */
     http_response(key request_id, integer status, list metadata, string body)
     {
-        llOwnerSay("!" + body);
+        debug("< " + body);
         integer i;
         list commands = llJson2List(body);
         for (i = 0; i < llGetListLength(commands); i++)

@@ -2,6 +2,7 @@
 
 require_once('config.php');
 require_once('db.php');
+require_once('logic.php');
 
 class Api {
 	private $header;
@@ -9,6 +10,9 @@ class Api {
 	function __construct() {
 		// TODO: support different environments
 		$this->header = $_SERVER;
+		if (!isset($this->header['X-SecondLife-Owner-Key'])) {
+			$this->header['X-SecondLife-Owner-Key'] = $this->header['HTTP_X_SECONDLIFE_OWNER_KEY'];
+		}
 	}
 
 	/**
@@ -33,40 +37,20 @@ class Api {
 		$body = file_get_contents('php://input');
 		$data = json_decode($body);
 		$cmd = $data[0];
-		
-		if ($cmd == "touch") {
-			$wrapper = array();
-			$command = array();
-			$command[] = 'dialog';
-			$command[] = 1234; // identifier
-			$command[] = $data[1]; // agentid
-			$command[] = 'Merit System';
-			$command[] = "['Add Merit', 'Add Demerit', 'List']";
-			$wrapper[] = $command;
-			echo json_encode($wrapper);
+
+		try {
+			$db = new DB();
+			$eventHandler = new EventHandler($db);
+			$res = $eventHandler->$cmd($this->header, $data);
+			$db->commit();
+			return $res;
+		} catch (Exception $e) {
+			return array(array('debug', $e->getMessage()), array('debug', $e->getTraceAsString()));
 		}
 	}
 }
 
 $api = new Api();
 $api->ensureValidSecret();
-$api->processData();
-
-$wrapper = array();
-$res = array();
-$res[] = 'ownersay';
-$res[] = $_SERVER['HTTP_X_SECONDLIFE_OWNER_KEY'].'---'.json_encode($body);
-
-$wrapper[] = $res;
-$res = array();
-$res[] = 'dialog';
-$res[] = 123;
-$res[] = 'c615d292-8d06-4d79-a059-7fa95d9822f7';
-$res[] = 'Hallo';
-$res[] = '["OK"]';
-$wrapper[] = $res;
-
-
-
-echo json_encode($wrapper);
-?>
+$response = $api->processData();
+echo json_encode($response);

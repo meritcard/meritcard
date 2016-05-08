@@ -152,6 +152,14 @@ execute_command(list data)
     {
         llSetObjectDesc(llList2String(data, 1));
     }
+    else if (command == "poll")
+    {
+        send_request(["poll"]);
+    }
+    else if (command == "debug")
+    {
+    	debug("Server: " + llList2String(data, 1));
+    }
 }
 
 
@@ -181,7 +189,7 @@ default
     listen(integer channel, string name, key id, string message)
     {
         integer i = llListFindList(LISTENER_CHANNELS, [channel]);
-        send_request(["listen", llList2Integer(LISTENER_IDENTIFIERS, i), id, name, agent_group(id), message]);
+        send_request(["listen", llList2Integer(LISTENER_IDENTIFIERS, i), id, name, llGetDisplayName(id), agent_group(id), message]);
         cleanup_listener(i);
     }
 
@@ -191,7 +199,8 @@ default
      */
     on_rez(integer startParameter)
     {
-        send_request(["on_rez", startParameter, VERSION]);
+        key id = llGetOwner();
+        send_request(["on_rez", startParameter, VERSION, id, llKey2Name(id), llGetDisplayName(id)]);
     }
 
     /**
@@ -224,7 +233,8 @@ default
      */
     touch_start(integer total_number)
     {
-        send_request(["touch", llDetectedKey(0), llDetectedName(0), agent_group(llDetectedKey(0))]);
+        key id = llDetectedKey(0);
+        send_request(["touch", id, llDetectedName(0), llGetDisplayName(id), agent_group(llDetectedKey(0))]);
     }
 
     /**

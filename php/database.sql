@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS agent (
   username VARCHAR(100),
   displayname VARCHAR(100),
   keyid VARCHAR(50),
+  role  VARCHAR(50),
   PRIMARY KEY(id),
   UNIQUE INDEX(keyid),
   UNIQUE INDEX(username)

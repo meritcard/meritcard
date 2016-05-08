@@ -1,6 +1,6 @@
 # merit
 
-![Logo](https://github.com/jonnwilliam/merit/blob/master/doc/main_dialog.png)
+![Logo](https://github.com/meritcard/meritcard/blob/master/doc/main_dialog.png)
 
 The merit system keeps track of good deeds (merits) and events of undesired behaviour (demerits). It can be used for both, roleplaying (e. g. a school) and real work (e. g. sim maintainance).
 
